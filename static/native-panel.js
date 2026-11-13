@@ -480,7 +480,7 @@
 
   const initialized = rpc('ui/initialize', {
     protocolVersion: '2026-01-26',
-    appInfo: { name: 'codex-ssh-terminal', version: '0.9.0' },
+    appInfo: { name: 'codex-ssh-terminal', version: '0.9.1' },
     appCapabilities: {},
   }).then(result => {
     window.parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized' }, '*');

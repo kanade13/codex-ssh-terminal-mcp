@@ -3,8 +3,8 @@ import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
-PANEL_VERSION = "0.9.0"
-PANEL_URI = "ui://codex-ssh-terminal/panel-v10.html"
+PANEL_VERSION = "0.9.1"
+PANEL_URI = "ui://codex-ssh-terminal/panel-v11.html"
 PANEL_MIME = "text/html;profile=mcp-app"
 
 

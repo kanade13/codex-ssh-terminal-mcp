@@ -97,7 +97,7 @@ Git 安装可运行：
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Update.ps1
 ```
 
-ZIP 安装请下载新版、解压并重新运行 `Install.ps1`。更新会沿用已有发行版与运行目录，并保留已填写的密码和先前导入的服务器。修改四机分组时应显式传入 `-MfaHosts`、`-PasswordHost`。更新后如 App 仍缓存旧插件，可在方便时重开 App。
+ZIP 安装请下载新版、解压并重新运行 `Install.ps1`。更新会沿用已有发行版与运行目录，并保留已填写的密码和先前导入的服务器。插件市场注册在固定的本地目录中，可以更换 ZIP 解压位置。修改四机分组时应显式传入 `-MfaHosts`、`-PasswordHost`。更新后如 App 仍缓存旧插件，可在方便时重开 App。
 
 默认本地位置：
 

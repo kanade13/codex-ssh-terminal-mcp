@@ -131,7 +131,26 @@ if (-not $SkipRegistration) {
     }
     if (-not $codex) { throw 'Codex CLI was not found. Open Codex App once, then rerun Install.ps1.' }
     $codexPath = if ($codex.Source) { $codex.Source } else { $codex.FullName }
-    & $codexPath plugin marketplace add $PSScriptRoot --json
+    # Register a stable local source so ZIP upgrades and moved checkouts work.
+    $marketplaceRoot = Join-Path $InstallDirectory 'marketplace'
+    foreach ($relative in @('.agents\plugins\marketplace.json', '.codex-plugin\plugin.json', '.mcp.json')) {
+        $target = Join-Path $marketplaceRoot $relative
+        New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+        Copy-Item -LiteralPath (Join-Path $PSScriptRoot $relative) -Destination $target
+    }
+    $marketplaces = & $codexPath plugin marketplace list --json
+    if ($LASTEXITCODE -ne 0) { throw 'Could not inspect existing plugin marketplaces.' }
+    $existing = ($marketplaces | Out-String | ConvertFrom-Json).marketplaces |
+        Where-Object { $_.name -eq 'ssh-terminal-community' } | Select-Object -First 1
+    if ($existing) {
+        $existingRoot = [string]$existing.root
+        if ($existingRoot.StartsWith('\\?\')) { $existingRoot = $existingRoot.Substring(4) }
+        if ([System.IO.Path]::GetFullPath($existingRoot).TrimEnd('\') -ne $marketplaceRoot.TrimEnd('\')) {
+            & $codexPath plugin marketplace remove ssh-terminal-community --json
+            if ($LASTEXITCODE -ne 0) { throw 'Could not migrate the SSH marketplace registration.' }
+        }
+    }
+    & $codexPath plugin marketplace add $marketplaceRoot --json
     if ($LASTEXITCODE -ne 0) { throw 'Could not register the plugin marketplace.' }
     & $codexPath plugin add ssh-terminal@ssh-terminal-community --json
     if ($LASTEXITCODE -ne 0) { throw 'Could not install the SSH terminal plugin.' }
