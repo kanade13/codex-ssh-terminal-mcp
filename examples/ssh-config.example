@@ -1,0 +1,18 @@
+Host bastion
+    HostName 192.0.2.10
+    User alice
+    Port 2200
+
+Host gpu-a
+    HostName 192.0.2.11
+    User alice
+    ProxyJump bastion
+
+Host gpu-b
+    HostName 192.0.2.12
+    User alice
+    ProxyJump bastion
+
+Host password-host
+    HostName 192.0.2.13
+    User alice

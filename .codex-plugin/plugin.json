@@ -1,0 +1,14 @@
+{
+  "name": "ssh-terminal",
+  "version": "0.9.0",
+  "description": "Interactive SSH terminal for Codex on Windows and WSL, with local password autofill and private 2FA input.",
+  "mcpServers": "./.mcp.json",
+  "requires_local_executor": true,
+  "interface": {
+    "displayName": "SSH 终端",
+    "shortDescription": "SSH · 密码与 2FA · 独立命令通道",
+    "developerName": "kanade13",
+    "category": "Productivity",
+    "defaultPrompt": ["打开 SSH 终端面板"]
+  }
+}

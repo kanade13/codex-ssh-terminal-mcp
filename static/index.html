@@ -1,0 +1,1319 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Codex SSH Terminal Bridge</title>
+    <style>
+      :root {
+        --bg: #f4f6f8;
+        --panel: #ffffff;
+        --text: #16202a;
+        --muted: #657282;
+        --line: #d9dee7;
+        --accent: #0f766e;
+        --accent-strong: #115e59;
+        --danger: #b42318;
+        --terminal: #111418;
+        --terminal-text: #e6edf3;
+        --terminal-muted: #9aa4b2;
+        --agent: #8bd5ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei",
+          sans-serif;
+      }
+
+      .app {
+        height: 100vh;
+        min-height: 0;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 18px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .statusbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 13px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        background: var(--danger);
+      }
+
+      .dot.running {
+        background: #12b76a;
+      }
+
+      main {
+        min-height: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 300px;
+        gap: 14px;
+        padding: 14px;
+        overflow: hidden;
+      }
+
+      .terminal-wrap,
+      aside,
+      footer {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+
+      .terminal-wrap {
+        min-width: 0;
+        min-height: 0;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        overflow: hidden;
+      }
+
+      .terminal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .terminal-title {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .terminal-head-main {
+        min-width: 0;
+        display: grid;
+        gap: 8px;
+      }
+
+      .session-tabs {
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        padding-bottom: 2px;
+      }
+
+      .session-tab {
+        flex: 0 0 auto;
+        min-height: 30px;
+        max-width: 250px;
+        padding: 0 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .session-tab.active {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+
+      #terminal {
+        min-height: 0;
+        height: auto;
+        overflow: hidden;
+        padding: 10px;
+        background: var(--terminal);
+        color: var(--terminal-text);
+      }
+
+      #terminal .xterm {
+        height: 100%;
+      }
+
+      #terminal .xterm-helper-textarea {
+        min-height: 0;
+        padding: 0;
+        border: 0;
+      }
+
+      aside {
+        min-width: 0;
+        min-height: 0;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        overflow: auto;
+      }
+
+      .section-title {
+        margin: 0 0 6px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .last-command {
+        min-height: 92px;
+        margin: 0;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #f8fafc;
+        color: #1f2937;
+        font:
+          12px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+          monospace;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
+      .upload-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .upload-card {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 10px;
+        display: grid;
+        gap: 8px;
+        background: #fbfcfe;
+      }
+
+      .upload-title {
+        font-size: 13px;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+      }
+
+      .upload-meta,
+      .upload-log {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .upload-log {
+        max-height: 120px;
+        overflow: auto;
+        padding: 8px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #fff;
+        white-space: pre-wrap;
+      }
+
+      .button-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .profile-form {
+        display: grid;
+        gap: 8px;
+      }
+
+      .batch-controls {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .batch-code {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      .profile-form label {
+        display: grid;
+        gap: 4px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .profile-form .inline {
+        display: grid;
+        grid-template-columns: 1fr 96px;
+        gap: 8px;
+      }
+
+      button {
+        min-height: 36px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #fff;
+        color: var(--text);
+        cursor: pointer;
+        font-size: 14px;
+      }
+
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+
+      button.primary:hover {
+        background: var(--accent-strong);
+      }
+
+      button.danger {
+        color: var(--danger);
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+      }
+
+      .toggle input {
+        width: 18px;
+        height: 18px;
+      }
+
+      .hint {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .notice {
+        padding: 9px 10px;
+        border: 1px solid #b9d6d2;
+        border-radius: 6px;
+        background: #eef8f6;
+        color: #23413e;
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      footer {
+        display: grid;
+        gap: 8px;
+        margin: 0 14px 14px;
+        padding: 12px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .footer-help { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .fallback-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 8px; }
+      .fallback-row button { padding: 0 12px; }
+      #fallbackInput { min-width: 0; min-height: 56px; max-height: 140px; resize: vertical; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; font: 13px/1.45 Consolas, monospace; }
+      #fallbackStatus { min-height: 1.2em; color: var(--muted); }
+      @media (max-width: 640px) {
+        .fallback-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        #fallbackInput { grid-column: 1 / -1; }
+      }
+
+      .auth-card { padding: 12px; border: 1px solid #e9bd65; border-radius: 6px; background: #fff9ec; }
+      .auth-card + .auth-card { margin-top: 8px; }
+      .auth-card pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+      .auth-card input { margin: 8px 0; }
+      .auth-card .auth-error { color: var(--danger); font-size: 12px; }
+
+      select,
+      input {
+        min-width: 0;
+        max-width: 100%;
+        min-height: 38px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 0 10px;
+        font-size: 14px;
+        background: #fff;
+      }
+
+      input {
+        width: 100%;
+        font:
+          14px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+          monospace;
+      }
+
+      .event-agent {
+        color: var(--agent);
+      }
+
+      .event-system {
+        color: var(--terminal-muted);
+      }
+
+      @media (max-width: 900px) {
+        main {
+          grid-template-columns: 1fr;
+          grid-template-rows: minmax(200px, 1fr) minmax(140px, .65fr);
+        }
+
+        #terminal {
+          height: auto;
+        }
+
+        footer {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <h1>SSH 终端 <small style="font-size: 11px; color: #657282">0.9.0</small></h1>
+        <div class="statusbar">
+          <span id="statusDot" class="dot"></span>
+          <span id="statusText">Checking...</span>
+        </div>
+      </header>
+
+      <main>
+        <section class="terminal-wrap">
+          <div class="terminal-header">
+            <div class="terminal-head-main">
+              <div class="terminal-title" id="commandText">SSH session</div>
+              <div id="sessionTabs" class="session-tabs" aria-label="SSH session tabs"></div>
+            </div>
+            <div class="button-row">
+              <button id="pasteBtn" title="右键 / Ctrl+Shift+V / Shift+Insert">粘贴</button>
+              <button id="clearBtn">清屏</button>
+            </div>
+          </div>
+          <div id="terminal" aria-label="交互式 SSH 终端"></div>
+        </section>
+
+        <aside>
+          <section id="authPrompts" aria-label="SSH 认证" hidden></section>
+          <section>
+            <p class="section-title">连接配置</p>
+            <div class="batch-controls">
+              <label class="toggle">
+                <span>同时连接四台服务器</span>
+                <input id="connectAllToggle" type="checkbox" checked />
+              </label>
+              <button id="startBtn" class="primary">连接四台服务器</button>
+              <div id="batchNotice" class="notice" hidden></div>
+              <div id="batchCodeControls" class="batch-code" hidden>
+                <input id="batchCode" type="password" inputmode="numeric" maxlength="6"
+                  autocomplete="off" aria-label="三台 MFA 主机共用的动态验证码" placeholder="输入一次六位验证码" />
+                <button id="batchCodeSend" class="primary">验证三台服务器</button>
+              </div>
+              <p id="batchHint" class="hint">密码登录主机自动使用本机保存的密码；三台 MFA 主机共用一次验证码。跳板就绪后并行连接两台目标机。批量别名可在 batch-profiles.json 中配置。</p>
+              <p id="maintenanceHint" class="hint">正在检查长连接维护状态…</p>
+            </div>
+            <div class="profile-form">
+              <select id="profileSelect" aria-label="saved connection profiles">
+                <option value="">未选择连接配置</option>
+              </select>
+              <div class="button-row">
+                <button id="setDefaultProfileBtn">设为默认</button>
+                <button id="deleteProfileBtn" class="danger">删除配置</button>
+              </div>
+              <div id="profileStorageNotice" class="notice" hidden></div>
+              <label>
+                配置名称
+                <input id="profileName" autocomplete="off" placeholder="例如 prod-bastion" />
+              </label>
+              <label>
+                说明
+                <input id="profileDescription" autocomplete="off" placeholder="给自己看的用途说明，可选" />
+              </label>
+              <label>
+                模式
+                <select id="profileMode">
+                  <option value="ssh">主机/端口/用户</option>
+                  <option value="command">完整 SSH 命令</option>
+                </select>
+              </label>
+              <div id="sshFields">
+                <label>
+                  SSH 主机
+                  <input id="profileHost" autocomplete="off" placeholder="bastion.example.com" />
+                </label>
+                <div class="inline">
+                  <label>
+                    SSH 用户
+                    <input id="profileUser" autocomplete="off" placeholder="alice" />
+                  </label>
+                  <label>
+                    端口
+                    <input id="profilePort" autocomplete="off" inputmode="numeric" value="22" />
+                  </label>
+                </div>
+                <label>
+                  ProxyJump
+                  <input id="profileProxyJump" autocomplete="off" placeholder="可选，例如 alice@bastion.example.com:22" />
+                </label>
+              </div>
+              <label id="commandField" hidden>
+                完整 SSH 命令
+                <input id="profileCommand" autocomplete="off" placeholder="ssh -J alice@bastion deploy@app" />
+              </label>
+              <div class="button-row">
+                <button id="saveProfileBtn" class="primary">保存配置</button>
+                <button id="reloadProfilesBtn">刷新配置</button>
+              </div>
+            </div>
+            <p class="hint">
+              连接参数与密码分别保存。自动填密码使用本机独立的 passwords.json；留空时手动输入。动态验证码不保存。
+            </p>
+          </section>
+
+          <section>
+            <p class="section-title">Codex 独立命令</p>
+            <pre id="lastCommand" class="last-command">命令与此终端分开运行，输出显示在聊天中。</pre>
+          </section>
+
+          <section>
+            <p class="section-title">会话控制</p>
+            <div class="button-row">
+              <button id="stopBtn" class="danger">断开 SSH</button>
+              <button id="ctrlCBtn">Ctrl-C</button>
+              <button id="enterBtn">Enter</button>
+            </div>
+          </section>
+
+          <section>
+            <p class="section-title">上传确认</p>
+            <div id="uploadList" class="upload-list">
+              <p class="hint">暂无上传请求</p>
+            </div>
+            <p class="hint">
+              Codex 只能发起上传请求。文件传输必须由你在这里确认；如 scp/rsync 要求密码，请在对应请求的私密输入框输入。
+            </p>
+          </section>
+
+          <section>
+            <p class="section-title">Codex 输入</p>
+            <label class="toggle">
+              <span>允许 Codex 在此服务器执行命令</span>
+              <input id="agentToggle" type="checkbox" checked />
+            </label>
+            <p class="hint">
+              关闭后，Codex 通过接口发送的命令会被拒绝。你仍可以直接在终端中操作。
+            </p>
+          </section>
+
+          <section>
+            <p class="section-title">安全边界</p>
+            <p class="hint">
+              页面仅连接本机 127.0.0.1 服务。私密输入不会被页面主动打印，后端也不会记录请求正文。
+            </p>
+          </section>
+        </aside>
+      </main>
+
+      <footer>
+        <div class="footer-help">
+          <span id="terminalHint">连接后点击终端直接输入 · 右键 / Ctrl+V 粘贴</span>
+          <button id="focusTerminalBtn">聚焦终端</button>
+        </div>
+        <label id="fallbackLabel" for="fallbackInput">备用命令输入</label>
+        <div class="fallback-row">
+          <textarea id="fallbackInput" rows="2" aria-label="备用命令输入" placeholder="备用输入：Enter 执行，Shift+Enter 换行；密码和验证码请在右侧认证区域输入。" disabled></textarea>
+          <button id="fallbackPasteBtn" disabled>粘贴到输入框</button>
+          <button id="fallbackRawBtn" disabled title="发送输入框全部内容，不额外追加回车">只发送</button>
+          <button id="fallbackSendBtn" class="primary" disabled>执行</button>
+        </div>
+        <span id="fallbackStatus" role="status" aria-live="polite"></span>
+      </footer>
+    </div>
+
+    <script>
+    (async () => {
+      if (!window.SSHOutputTerminal) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = '/terminal-engine.js';
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('终端渲染器加载失败，请重新打开面板。'));
+          document.head.appendChild(script);
+        });
+      }
+      const terminal = document.getElementById('terminal');
+      const terminalView = new window.SSHOutputTerminal(terminal, {
+        onData: data => terminalInput.write(activeSessionId, data),
+        onResize: size => resizeTerminal(size),
+        onNotice: message => { document.getElementById('terminalHint').textContent = message; },
+      });
+      const statusDot = document.getElementById('statusDot');
+      const statusText = document.getElementById('statusText');
+      const commandText = document.getElementById('commandText');
+      const sessionTabs = document.getElementById('sessionTabs');
+      const lastCommand = document.getElementById('lastCommand');
+      const authPrompts = document.getElementById('authPrompts');
+      const authCards = new Map();
+      const terminalHint = document.getElementById('terminalHint');
+      const agentToggle = document.getElementById('agentToggle');
+      const profileSelect = document.getElementById('profileSelect');
+      const profileName = document.getElementById('profileName');
+      const profileDescription = document.getElementById('profileDescription');
+      const profileMode = document.getElementById('profileMode');
+      const profileHost = document.getElementById('profileHost');
+      const profilePort = document.getElementById('profilePort');
+      const profileUser = document.getElementById('profileUser');
+      const profileProxyJump = document.getElementById('profileProxyJump');
+      const profileCommand = document.getElementById('profileCommand');
+      const profileStorageNotice = document.getElementById('profileStorageNotice');
+      const sshFields = document.getElementById('sshFields');
+      const commandField = document.getElementById('commandField');
+      const uploadList = document.getElementById('uploadList');
+      const connectAllToggle = document.getElementById('connectAllToggle');
+      const startBtn = document.getElementById('startBtn');
+      const batchNotice = document.getElementById('batchNotice');
+      const batchCodeControls = document.getElementById('batchCodeControls');
+      const batchCode = document.getElementById('batchCode');
+      const batchCodeSend = document.getElementById('batchCodeSend');
+      let connectionBatch = null;
+      let sendingBatchCode = false;
+      let previousBatchNeedsCode = false;
+      let batchSupported = false;
+      let profiles = {};
+      let defaultProfile = '';
+      let uploads = [];
+      let sessions = [];
+      let activeSessionId = '';
+      let events = null;
+      let lastSeenSeq = 0;
+      let interactiveSupported = false;
+      let resizeTimer = null;
+      const sentSizes = new Map();
+      const bridgeFetch = window.codexSSHNative?.fetch || window.fetch.bind(window);
+      const terminalInput = new window.SSHTerminalInput(async (sessionId, data) => {
+        await postJson('/api/input', { sessionId, data, terminal: true, private: true });
+        events?.wake?.();
+      }, error => {
+        const reason = String(error.message).replace(/[。.!！]+$/, '');
+        terminalHint.textContent = `输入中断。${reason}。处理后点击终端继续。`;
+        refreshStatus().catch(() => {});
+      });
+      const fallbackInput = new window.SSHFallbackInput({
+        input: document.getElementById('fallbackInput'), execute: document.getElementById('fallbackSendBtn'),
+        raw: document.getElementById('fallbackRawBtn'), paste: document.getElementById('fallbackPasteBtn'),
+        label: document.getElementById('fallbackLabel'), status: document.getElementById('fallbackStatus'),
+        send: async (sessionId, data) => {
+          await postJson('/api/input', { sessionId, data, terminal: true, private: true });
+          events?.wake?.();
+        },
+        readClipboard: () => window.codexSSHNative?.readClipboard
+          ? window.codexSSHNative.readClipboard() : navigator.clipboard.readText(),
+      });
+
+      function resizeTerminal(size) {
+        clearTimeout(resizeTimer);
+        const sessionId = activeSessionId;
+        if (!sessionId || !interactiveSupported || !activeSession()?.running) return;
+        const key = `${size.cols}x${size.rows}`;
+        if (sentSizes.get(sessionId) === key) return;
+        resizeTimer = setTimeout(() => {
+          postJson('/api/resize', { sessionId, ...size }).then(() => sentSizes.set(sessionId, key)).catch(() => {});
+        }, 100);
+      }
+
+      function syncTerminalInput() {
+        const session = activeSession();
+        const canSend = session?.running && !session.authPromptPending
+          && (!session.managedConnection || session.connected);
+        const enabled = interactiveSupported && canSend;
+        terminalView.setEnabled(enabled);
+        fallbackInput.sync(session, canSend);
+        if (!terminalInput.blocked) {
+          terminalHint.textContent = enabled
+            ? '右键粘贴 · Ctrl+Shift+C 复制 · Ctrl+C 中断 · ↑↓ 历史 · Tab 补全 · Ctrl+加减号调字号'
+            : session?.authPromptPending ? '请完成右侧认证，随后可直接在终端输入'
+            : '连接后点击终端直接输入命令';
+        }
+        resizeTerminal(terminalView.size());
+      }
+
+      function focusTerminal() {
+        terminalInput.resume();
+        syncTerminalInput();
+        terminalView.focus();
+      }
+      terminal.addEventListener('pointerdown', () => {
+        terminalInput.resume();
+        syncTerminalInput();
+      });
+      document.getElementById('focusTerminalBtn').addEventListener('click', focusTerminal);
+      document.getElementById('pasteBtn').addEventListener('click', () => terminalView.pasteClipboard());
+
+      function appendText(text) {
+        terminalView.write(text);
+      }
+
+      async function postJson(url, body = {}) {
+        const res = await bridgeFetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok || data.ok === false) {
+          throw new Error(data.error || res.statusText);
+        }
+        return data;
+      }
+
+      async function refreshStatus() {
+        const data = await bridgeFetch('/api/status', { cache: 'no-store' }).then(r => r.json());
+        sessions = data.sessions || [];
+        batchSupported = data.features?.batchConnect === true;
+        interactiveSupported = data.features?.interactiveTerminal === true;
+        const latestSessions = new Map(sessions.map(s => [s.profileName || s.sessionId, s]));
+        const recoveryNotes = [...latestSessions.values()].filter(s => !s.connected && s.autoReconnect && s.recoveryState === 'needs_auth');
+        document.getElementById('maintenanceHint').textContent = data.features?.connectionMaintenanceCompat
+          ? `兼容维护已启用 · 主连接保持 12 小时 · ${data.maintenance?.message || '掉线后尝试复用认证恢复'}`
+          : data.features?.connectionRecovery
+          ? (recoveryNotes.length ? `${recoveryNotes.map(s => s.profileName).join('、')}：主连接已失效，请重新连接并完成认证。`
+            : '主连接保留 12 小时 · 终端掉线自动恢复 · 原命令不自动重跑')
+          : '当前 SSH 后台仍是旧版。现有连接继续保留，长连接维护将在下次启动新版后台时启用。';
+        connectionBatch = data.connectionBatch || null;
+        renderBatchState();
+        if (activeSessionId && !sessions.some(session => session.sessionId === activeSessionId)) {
+          activeSessionId = '';
+        }
+        const latestRunning = sessions.findLast(session => session.running);
+        if ((!activeSessionId || !activeSession()?.running) && latestRunning) {
+          activeSessionId = latestRunning.sessionId;
+          await loadActiveHistory();
+          openEventStream();
+        }
+        const connected = sessions.filter(session => session.connected).length;
+        const pending = sessions.filter(session => session.running && !session.connected).length;
+        statusDot.classList.toggle('running', connected > 0);
+        statusText.textContent = data.running
+          ? `已连接 ${connected} 台${pending ? ` · ${pending} 个会话连接中` : ''}`
+          : 'SSH 未运行';
+        renderSessionTabs();
+        renderActiveSessionHeader();
+        renderAuthPrompts();
+        syncTerminalInput();
+      }
+
+      function renderAuthPrompts() {
+        const visible = new Set();
+        for (const session of sessions) {
+          const auth = session.running && session.authPrompt;
+          if (!auth) continue;
+          if (auth.kind === 'code' && connectionBatch?.phase === 'connecting'
+              && connectionBatch.pendingProfiles.includes(session.profileName)) continue;
+          visible.add(auth.id);
+          if (authCards.has(auth.id)) continue;
+          const card = document.createElement('div');
+          card.className = 'auth-card';
+          const title = document.createElement('strong');
+          title.textContent = `${session.profileName} · ${auth.kind === 'host_key' ? '首次连接：确认主机指纹' : 'SSH 认证'}`;
+          const prompt = document.createElement('pre');
+          prompt.textContent = auth.prompt;
+          const error = document.createElement('p');
+          error.className = 'auth-error';
+          card.append(title, prompt);
+          let sending = false;
+          const submit = async value => {
+            if (sending) return;
+            sending = true;
+            card.querySelectorAll('button').forEach(button => { button.disabled = true; });
+            try {
+              await postJson('/api/input', {
+                sessionId: session.sessionId, authRequestId: auth.id, data: value, private: true,
+              });
+              await refreshStatus();
+              events?.wake?.();
+            } catch (failure) { error.textContent = failure.message; }
+            finally {
+              sending = false;
+              card.querySelectorAll('button').forEach(button => { button.disabled = false; });
+            }
+          };
+          if (auth.kind === 'host_key') {
+            const hint = document.createElement('p');
+            hint.className = 'hint';
+            hint.textContent = '确认这是目标服务器的指纹后接受；保存后无需再次确认。';
+            const accept = document.createElement('button');
+            accept.className = 'primary';
+            accept.textContent = '接受指纹并继续';
+            accept.addEventListener('click', () => submit('yes'));
+            const reject = document.createElement('button');
+            reject.textContent = '拒绝';
+            reject.addEventListener('click', () => submit('no'));
+            card.append(hint, accept, reject);
+          } else {
+            const input = document.createElement('input');
+            input.type = 'password';
+            input.autocomplete = 'off';
+            input.placeholder = auth.kind === 'code' ? '动态验证码' : '私密认证输入';
+            input.setAttribute('aria-label', `${session.profileName} 私密认证输入`);
+            const button = document.createElement('button');
+            button.className = 'primary';
+            button.textContent = '提交认证';
+            const send = () => { const value = input.value; input.value = ''; submit(value); };
+            button.addEventListener('click', send);
+            input.addEventListener('keydown', event => {
+              if (event.key === 'Enter') { event.preventDefault(); send(); }
+            });
+            card.append(input, button);
+          }
+          card.append(error);
+          authCards.set(auth.id, card);
+          authPrompts.append(card);
+          authPrompts.parentElement.scrollTop = 0;
+        }
+        for (const [id, card] of authCards) {
+          if (!visible.has(id)) { card.remove(); authCards.delete(id); }
+        }
+        authPrompts.hidden = !authCards.size;
+      }
+
+      function activeSession() {
+        return sessions.find(session => session.sessionId === activeSessionId);
+      }
+
+      function renderBatchState() {
+        const batch = connectionBatch;
+        const inProgress = batch?.phase === 'connecting';
+        startBtn.disabled = connectAllToggle.checked && (inProgress || !batchSupported);
+        startBtn.textContent = connectAllToggle.checked ? '连接四台服务器' : '连接所选服务器';
+        document.getElementById('batchHint').hidden = !connectAllToggle.checked;
+        batchNotice.hidden = !batch && batchSupported;
+        if (!batchSupported) {
+          batchNotice.textContent = '本机连接服务需要更新，暂时无法使用四机联动。';
+        }
+        if (batch) {
+          const count = batch.connectedProfiles.length;
+          const total = batch.profiles.length;
+          batchNotice.textContent = batch.needsCode
+            ? `已连接 ${count}/${total} · 请在下方输入一次验证码，用于三台 MFA 主机`
+            : `已连接 ${count}/${total} · ${batch.message}`;
+        }
+        const needsCode = Boolean(inProgress && batch.needsCode);
+        batchCodeControls.hidden = !needsCode;
+        batchCodeSend.disabled = sendingBatchCode;
+        if (needsCode && !previousBatchNeedsCode) batchCode.focus();
+        if (!needsCode) batchCode.value = '';
+        previousBatchNeedsCode = needsCode;
+      }
+
+      async function sendBatchCode() {
+        if (sendingBatchCode || !connectionBatch?.needsCode) return;
+        if (!/^[0-9]{6}$/.test(batchCode.value)) {
+          throw new Error('请输入当前的六位动态验证码');
+        }
+        sendingBatchCode = true;
+        batchCodeSend.disabled = true;
+        const value = batchCode.value;
+        batchCode.value = '';
+        try {
+          await postJson('/api/input', {
+            authBatchId: connectionBatch.id, data: value, private: true, enter: true,
+          });
+          await refreshStatus();
+        } finally {
+          sendingBatchCode = false;
+          batchCodeSend.disabled = false;
+        }
+      }
+
+      function sessionLabel(session) {
+        const name = session.profileName || session.sessionId;
+        const state = !session.running ? session.recoveryState === 'needs_auth' ? '待重新认证'
+          : session.autoReconnect ? '等待恢复' : '已断开' : session.authPrompt?.kind === 'host_key'
+          ? '待确认指纹' : session.authPromptPending ? '待验证' : session.connected ? '已连接'
+          : session.managedConnection ? '连接中' : '运行中';
+        return `${name} · ${state}`;
+      }
+
+      function renderSessionTabs() {
+        sessionTabs.textContent = '';
+        if (!sessions.length) {
+          const empty = document.createElement('span');
+          empty.className = 'hint';
+          empty.textContent = '暂无会话';
+          sessionTabs.appendChild(empty);
+          return;
+        }
+        const latest = new Map(sessions.map(session => [session.profileName || session.sessionId, session]));
+        [...latest.values()].forEach(session => {
+          const tab = document.createElement('button');
+          tab.className = 'session-tab' + (session.sessionId === activeSessionId ? ' active' : '');
+          tab.title = `${session.sessionId} | ${session.profileName || ''} | ${session.hostHint || ''}`;
+          tab.textContent = sessionLabel(session);
+          tab.addEventListener('click', () => setActiveSession(session.sessionId));
+          sessionTabs.appendChild(tab);
+        });
+      }
+
+      function renderActiveSessionHeader() {
+        const session = activeSession();
+        if (!session) {
+          commandText.textContent = '未选择连接配置';
+          agentToggle.checked = true;
+          lastCommand.textContent = '尚无命令';
+          return;
+        }
+        const parts = [session.profileName || session.sessionId];
+        if (session.userHint) parts.push(session.userHint);
+        if (session.hostHint) parts.push(session.hostHint);
+        if (session.portHint) parts.push(`:${session.portHint}`);
+        commandText.textContent = parts.join(' ');
+        agentToggle.checked = session.agentInputEnabled !== false;
+        lastCommand.textContent = '命令与此终端分开运行，输出显示在聊天中。';
+      }
+
+      async function setActiveSession(sessionId) {
+        if (activeSessionId === sessionId) return;
+        activeSessionId = sessionId;
+        syncTerminalInput();
+        terminalView.setEnabled(false);
+        terminalView.reset();
+        renderSessionTabs();
+        renderActiveSessionHeader();
+        await loadActiveHistory();
+        openEventStream();
+        syncTerminalInput();
+        terminalView.focus();
+      }
+
+      async function loadActiveHistory() {
+        if (!activeSessionId) return;
+        terminalView.setEnabled(false);
+        if (events) { events.close(); events = null; }
+        const requestedSession = activeSessionId;
+        const data = await bridgeFetch(`/api/snapshot?sessionId=${encodeURIComponent(activeSessionId)}&limit=200`, {
+          cache: 'no-store',
+        }).then(r => r.json());
+        if (requestedSession !== activeSessionId) return;
+        terminalView.reset();
+        lastSeenSeq = 0;
+        (data.events || []).forEach(item => appendEvent(item, true));
+        syncTerminalInput();
+      }
+
+      function appendEvent(item, history = false) {
+        if (item.seq && item.seq <= lastSeenSeq) return;
+        if (item.seq) lastSeenSeq = item.seq;
+        if (!history && (item.type === 'auth_prompt' || item.type === 'auth_response')) {
+          if (item.type === 'auth_prompt') terminalView.setEnabled(false);
+          refreshStatus().catch(() => {});
+        }
+        if (item.type === 'output') {
+          appendText(item.text);
+        } else if (item.type === 'agent_command') {
+          lastCommand.textContent = item.text;
+        } else if (item.type !== 'auth_prompt' && item.type !== 'auth_response') {
+          appendText(item.text, 'event-system');
+        }
+      }
+
+      function openEventStream() {
+        if (events) {
+          events.close();
+          events = null;
+        }
+        if (!activeSessionId) return;
+        if (window.codexSSHNative) {
+          events = window.codexSSHNative.stream(activeSessionId, appendEvent, () => {
+            statusText.textContent = '终端连接中断，正在重试';
+            statusDot.classList.remove('running');
+          }, lastSeenSeq);
+          return;
+        }
+        events = new EventSource(`/events?history=80&sessionId=${encodeURIComponent(activeSessionId)}`, {
+          withCredentials: true,
+        });
+        events.addEventListener('terminal', event => {
+          appendEvent(JSON.parse(event.data));
+        });
+        events.onerror = () => {
+          statusText.textContent = '事件流断开，尝试重连中';
+          statusDot.classList.remove('running');
+        };
+      }
+
+      async function refreshProfiles() {
+        const data = await bridgeFetch('/api/profiles?redact=1', { cache: 'no-store' }).then(r => r.json());
+        profiles = {};
+        (data.profiles || []).forEach(profile => {
+          profiles[profile.name] = profile;
+        });
+        defaultProfile = data.defaultProfile || '';
+        profileSelect.innerHTML = '<option value="">未选择连接配置</option>';
+        Object.values(profiles)
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .forEach(profile => {
+            const option = document.createElement('option');
+            option.value = profile.name;
+            option.textContent =
+              profile.name + (profile.name === defaultProfile ? ' (默认)' : '') + (profile.description ? ` - ${profile.description}` : '');
+            profileSelect.appendChild(option);
+          });
+        if (defaultProfile && profiles[defaultProfile]) {
+          profileSelect.value = defaultProfile;
+          fillProfileForm(profiles[defaultProfile]);
+        }
+      }
+
+      function resetProfilePlaceholders() {
+        profileHost.placeholder = 'bastion.example.com';
+        profileUser.placeholder = 'alice';
+        profilePort.placeholder = '22';
+        profileProxyJump.placeholder = '可选，例如 alice@bastion.example.com:22';
+        profileCommand.placeholder = 'ssh -J alice@bastion deploy@app';
+      }
+
+      function clearProfileForm() {
+        profileName.value = '';
+        profileDescription.value = '';
+        profileMode.value = 'ssh';
+        profileHost.value = '';
+        profilePort.value = '22';
+        profileUser.value = '';
+        profileProxyJump.value = '';
+        profileCommand.value = '';
+        profileStorageNotice.hidden = true;
+        profileStorageNotice.textContent = '';
+        resetProfilePlaceholders();
+        syncProfileMode();
+      }
+
+      function formatProfileHints(profile) {
+        const hints = profile.public || {};
+        if (profile.mode === 'command') return hints.commandHint || 'ssh ...';
+        const parts = [];
+        if (hints.hostHint) parts.push(`主机 ${hints.hostHint}`);
+        if (hints.userHint) parts.push(`用户 ${hints.userHint}`);
+        if (hints.portHint) parts.push(`端口 ${hints.portHint}`);
+        if (hints.proxyJumpHint) parts.push(`ProxyJump ${hints.proxyJumpHint}`);
+        return parts.length ? parts.join('，') : '暂无脱敏提示';
+      }
+
+      function showProfileNotice(profile) {
+        if (!profile) {
+          profileStorageNotice.hidden = true;
+          profileStorageNotice.textContent = '';
+          return;
+        }
+        profileStorageNotice.hidden = false;
+        const hints = profile.public || {};
+        if (profile.storageMode === 'keychain') {
+          profileStorageNotice.textContent =
+            `真实连接参数保存在系统钥匙串中，页面不会回填真实值。当前提示：${formatProfileHints(profile)}。如需修改，请重新填写完整连接信息后保存。`;
+        } else {
+          profileStorageNotice.textContent =
+            `这是兼容读取的旧版 plain profile。页面列表只显示脱敏提示：${formatProfileHints(profile)}。如需修改，请重新填写完整连接信息。连接参数保存在本机配置目录。`;
+        }
+        if (profile.mode === 'command') {
+          profileCommand.placeholder = hints.commandHint ? `已保存：${hints.commandHint}` : '重新输入完整 SSH 命令';
+        } else {
+          profileHost.placeholder = hints.hostHint ? `已保存：${hints.hostHint}` : '重新输入 SSH 主机';
+          profileUser.placeholder = hints.userHint ? `已保存：${hints.userHint}` : '重新输入 SSH 用户';
+          profilePort.placeholder = hints.portHint ? `已保存：${hints.portHint}` : '22';
+          profileProxyJump.placeholder = hints.proxyJumpHint ? `已保存：${hints.proxyJumpHint}` : '可选';
+        }
+      }
+
+      function fillProfileForm(profile) {
+        resetProfilePlaceholders();
+        if (!profile) {
+          clearProfileForm();
+          return;
+        }
+        profileName.value = profile.name || '';
+        profileDescription.value = profile.description || '';
+        profileMode.value = profile.mode === 'command' ? 'command' : 'ssh';
+        if (profile.storageMode === 'keychain') {
+          profileHost.value = '';
+          profilePort.value = '';
+          profileUser.value = '';
+          profileProxyJump.value = '';
+          profileCommand.value = '';
+        } else {
+          profileHost.value = profile.sshHost || '';
+          profilePort.value = String(profile.sshPort || 22);
+          profileUser.value = profile.sshUser || '';
+          profileProxyJump.value = profile.proxyJump || '';
+          profileCommand.value = profile.command || '';
+        }
+        showProfileNotice(profile);
+        syncProfileMode();
+      }
+
+      function syncProfileMode() {
+        const commandMode = profileMode.value === 'command';
+        sshFields.hidden = commandMode;
+        commandField.hidden = !commandMode;
+      }
+
+      async function saveProfile() {
+        const payload = {
+          name: profileName.value.trim(),
+          description: profileDescription.value.trim(),
+          makeDefault: !defaultProfile,
+          storageMode: 'plain',
+        };
+        if (!payload.name) throw new Error('配置名称必填');
+        if (profileMode.value === 'command') {
+          payload.command = profileCommand.value.trim();
+          if (!payload.command) throw new Error('完整 SSH 命令必填');
+        } else {
+          payload.sshHost = profileHost.value.trim();
+          payload.sshPort = Number(profilePort.value || 22);
+          payload.sshUser = profileUser.value.trim();
+          payload.proxyJump = profileProxyJump.value.trim();
+          if (!payload.sshHost) throw new Error('SSH 主机必填');
+        }
+        await postJson('/api/profiles', payload);
+        await refreshProfiles();
+        profileSelect.value = payload.name;
+      }
+
+      function formatBytes(value) {
+        if (value < 1024) return `${value} B`;
+        if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+        if (value < 1024 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
+        return `${(value / 1024 / 1024 / 1024).toFixed(1)} GB`;
+      }
+
+      async function refreshUploads() {
+        const data = await bridgeFetch('/api/uploads', { cache: 'no-store' }).then(r => r.json());
+        uploads = data.uploads || [];
+        renderUploads();
+      }
+
+      function renderUploads() {
+        if (!uploads.length) {
+          uploadList.innerHTML = '<p class="hint">暂无上传请求</p>';
+          return;
+        }
+        uploadList.textContent = '';
+        uploads
+          .slice()
+          .reverse()
+          .forEach(upload => {
+            const card = document.createElement('div');
+            card.className = 'upload-card';
+
+            const title = document.createElement('div');
+            title.className = 'upload-title';
+            title.textContent = `${upload.filename} -> ${upload.remotePath}`;
+
+            const meta = document.createElement('div');
+            meta.className = 'upload-meta';
+            meta.textContent = `状态: ${upload.status} | 大小: ${formatBytes(upload.size)} | profile: ${upload.profileName} | 策略: ${upload.ifExists} | 方法: ${upload.method} | 校验: size${upload.checksum === 'sha256' ? '+sha256' : ''}`;
+
+            const buttons = document.createElement('div');
+            buttons.className = 'button-row';
+
+            if (upload.status === 'pending_confirmation') {
+              const confirmBtn = document.createElement('button');
+              confirmBtn.className = 'primary';
+              confirmBtn.textContent = '确认上传';
+              confirmBtn.addEventListener('click', () => {
+                postJson('/api/upload-confirm', { id: upload.id }).then(refreshUploads).catch(err => alert(err.message));
+              });
+              const rejectBtn = document.createElement('button');
+              rejectBtn.className = 'danger';
+              rejectBtn.textContent = '拒绝';
+              rejectBtn.addEventListener('click', () => {
+                postJson('/api/upload-reject', { id: upload.id }).then(refreshUploads).catch(err => alert(err.message));
+              });
+              buttons.append(confirmBtn, rejectBtn);
+            } else if (upload.status === 'running') {
+              const cancelBtn = document.createElement('button');
+              cancelBtn.className = 'danger';
+              cancelBtn.textContent = '取消上传';
+              cancelBtn.addEventListener('click', () => {
+                postJson('/api/upload-cancel', { id: upload.id }).then(refreshUploads).catch(err => alert(err.message));
+              });
+              buttons.appendChild(cancelBtn);
+            }
+
+            card.append(title, meta);
+            if (upload.verification) {
+              const verify = document.createElement('div');
+              verify.className = 'upload-meta';
+              const size = upload.verification.size || {};
+              const sha = upload.verification.sha256;
+              const parts = [`size: ${size.ok === null ? 'pending' : size.ok ? 'ok' : 'failed'}`];
+              if (sha) parts.push(`sha256: ${sha.ok === null ? 'pending' : sha.ok ? 'ok' : 'failed'}`);
+              verify.textContent = `远端校验: ${parts.join(' | ')}`;
+              card.appendChild(verify);
+            }
+            if (buttons.childElementCount) card.appendChild(buttons);
+
+            if (upload.status === 'running') {
+              const input = document.createElement('input');
+              input.type = 'password';
+              input.placeholder = '传输密码/验证码，按 Enter 发送';
+              input.addEventListener('keydown', event => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  postJson('/api/upload-input', { id: upload.id, data: input.value, enter: true })
+                    .then(() => {
+                      input.value = '';
+                    })
+                    .catch(err => alert(err.message));
+                }
+              });
+              card.appendChild(input);
+            }
+
+            bridgeFetch(`/api/upload?id=${encodeURIComponent(upload.id)}`, { cache: 'no-store' })
+              .then(r => r.json())
+              .then(data => {
+                const full = data.upload;
+                if (!full || !full.log || !full.log.length) return;
+                const log = document.createElement('div');
+                log.className = 'upload-log';
+                log.textContent = full.log.map(item => item.text).join('');
+                card.appendChild(log);
+              })
+              .catch(() => {});
+
+            uploadList.appendChild(card);
+          });
+      }
+
+      document.getElementById('startBtn').addEventListener('click', () => {
+        const selected = profileSelect.value || undefined;
+        batchCode.value = '';
+        const batchMode = connectAllToggle.checked;
+        if (batchMode && !batchSupported) return;
+        postJson('/api/start', batchMode ? { connectAll: true } : { profileName: selected })
+          .then(data => {
+            if (data.sessionId) activeSessionId = data.sessionId;
+            return refreshStatus().then(loadActiveHistory).then(openEventStream);
+          })
+          .catch(err => alert(err.message));
+      });
+
+      connectAllToggle.addEventListener('change', renderBatchState);
+      batchCodeSend.addEventListener('click', () => sendBatchCode().catch(error => alert(error.message)));
+      batchCode.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          sendBatchCode().catch(error => alert(error.message));
+        }
+      });
+
+      document.getElementById('stopBtn').addEventListener('click', () => {
+        if (!activeSessionId) return;
+        postJson('/api/stop', { sessionId: activeSessionId }).then(refreshStatus).catch(err => alert(err.message));
+      });
+
+      document.getElementById('ctrlCBtn').addEventListener('click', () => {
+        if (!activeSessionId) return;
+        postJson('/api/control', { sessionId: activeSessionId, name: 'ctrl-c' }).catch(err => alert(err.message));
+      });
+
+      document.getElementById('enterBtn').addEventListener('click', () => {
+        if (!activeSessionId) return;
+        postJson('/api/control', { sessionId: activeSessionId, name: 'enter' }).catch(err => alert(err.message));
+      });
+
+      document.getElementById('clearBtn').addEventListener('click', () => {
+        if (!activeSessionId) return;
+        terminalView.reset();
+        postJson('/api/clear-history', { sessionId: activeSessionId }).catch(err =>
+          appendText(`\r\n[clear failed] ${err.message}\r\n`, 'event-system')
+        );
+      });
+
+      agentToggle.addEventListener('change', () => {
+        if (!activeSessionId) return;
+        postJson('/api/agent-enabled', { sessionId: activeSessionId, enabled: agentToggle.checked })
+          .then(refreshStatus)
+          .catch(err => alert(err.message));
+      });
+
+      profileSelect.addEventListener('change', () => {
+        fillProfileForm(profiles[profileSelect.value]);
+      });
+
+      profileMode.addEventListener('change', syncProfileMode);
+
+      document.getElementById('saveProfileBtn').addEventListener('click', () => {
+        saveProfile().catch(err => alert(err.message));
+      });
+
+      document.getElementById('reloadProfilesBtn').addEventListener('click', () => {
+        refreshProfiles().catch(err => alert(err.message));
+      });
+
+      document.getElementById('deleteProfileBtn').addEventListener('click', async () => {
+        const name = profileSelect.value;
+        if (!name) return;
+        const confirmDelete = window.codexSSHNative?.confirm || window.confirm.bind(window);
+        if (!await confirmDelete(`删除连接配置 ${name}？`)) return;
+        postJson('/api/delete-profile', { name })
+          .then(refreshProfiles)
+          .catch(err => alert(err.message));
+      });
+
+      document.getElementById('setDefaultProfileBtn').addEventListener('click', () => {
+        const name = profileSelect.value;
+        if (!name) return;
+        postJson('/api/default-profile', { name })
+          .then(refreshProfiles)
+          .catch(err => alert(err.message));
+      });
+
+      syncProfileMode();
+      refreshProfiles().catch(err => appendText(`\r\n[profiles failed] ${err.message}\r\n`, 'event-system'));
+      refreshUploads().catch(err => appendText(`\r\n[uploads failed] ${err.message}\r\n`, 'event-system'));
+      refreshStatus().catch(err => appendText(`\r\n[status failed] ${err.message}\r\n`, 'event-system'));
+      setInterval(() => refreshStatus().catch(() => {}), 3000);
+      setInterval(() => refreshUploads().catch(() => {}), 3000);
+    })().catch(error => {
+      document.getElementById('statusText').textContent = error.message;
+    });
+    </script>
+  </body>
+</html>

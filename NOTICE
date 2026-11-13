@@ -1,0 +1,8 @@
+Codex SSH Terminal MCP
+Derived from https://github.com/NullPointerChef/codex-ssh-terminal-mcp
+Upstream revision cb3353a149114057deb716411cecb05f1d7873af, Apache-2.0.
+
+This distribution adds a Codex MCP Apps terminal, password/2FA helpers,
+connection recovery, isolated agent command channels, and Windows/WSL setup.
+
+Bundled xterm.js and addon-fit retain their MIT licenses in static/vendor/.

@@ -1,0 +1,53 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const path = require('node:path');
+const context = vm.createContext({ window: {codexSSHNative:{}} });
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../static/fallback-input.js'),'utf8'),context);
+const element = () => ({value:'',textContent:'',disabled:false,listeners:{},selectionStart:0,selectionEnd:0,
+  addEventListener(name,fn){this.listeners[name]=fn;},focus(){},
+  setRangeText(text,start,end){this.value=this.value.slice(0,start)+text+this.value.slice(end);}
+});
+const fields=Object.fromEntries(['input','execute','raw','paste','label','status'].map(name=>[name,element()]));
+const writes=[];
+let send=async(id,data)=>writes.push([id,data]);
+let read=async()=> '中文 pasted';
+const form=new context.window.SSHFallbackInput({...fields,send:(...args)=>send(...args),readClipboard:()=>read()});
+const tick=()=>new Promise(resolve=>setImmediate(resolve));
+(async()=>{
+  form.sync({sessionId:'six',profileName:'A800'},true);
+  fields.input.value="printf 'OK\\n'";
+  await form.submit(true);
+  assert.deepEqual(writes,[['six',"printf 'OK\\n'\r"]]);
+  assert.equal(fields.input.value,'');
+  fields.input.value='raw';
+  await form.submit(false);
+  assert.deepEqual(writes.at(-1),['six','raw']);
+  fields.input.value='draft on six';
+  form.sync({sessionId:'seven',profileName:'A40'},true);
+  assert.equal(fields.input.value,'');
+  fields.input.value='draft on seven';
+  form.sync({sessionId:'six',profileName:'A800'},true);
+  assert.equal(fields.input.value,'draft on six');
+  let release;
+  read=()=>new Promise(resolve=>release=resolve);
+  const pasting=form.pasteDraft();
+  form.sync({sessionId:'seven',profileName:'A40'},true);
+  release('must not enter another draft'); await pasting;
+  assert.equal(fields.input.value,'draft on seven');
+  fields.input.value='中😀'.repeat(5000);
+  let releaseSend;
+  send=async(id,data)=>{writes.push([id,data]); if(!releaseSend) await new Promise(resolve=>releaseSend=resolve);};
+  const pending=form.submit(true); await tick();
+  form.sync({sessionId:'six',profileName:'A800'},true);
+  releaseSend(); await pending;
+  assert(writes.slice(2).every(item=>item[0]==='seven'&&!/[\uD800-\uDBFF]$/.test(item[1])));
+  fields.input.value='do not send during auth'; form.sync({sessionId:'six'},false);
+  const count=writes.length; await form.submit(true); assert.equal(writes.length,count);
+  form.sync({sessionId:'six'},true);
+  send=async()=>{throw Error('offline');};
+  await form.submit(true);
+  assert.equal(fields.input.value,'do not send during auth');
+  assert(fields.status.textContent.includes('不会自动重发'));
+  console.log('Fallback entry: execute/raw, per-host drafts, Unicode chunks, session binding, auth guard and no replay passed.');
+})();

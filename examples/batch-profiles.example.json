@@ -1,0 +1,4 @@
+{
+  "mfa_profiles": ["bastion", "gpu-a", "gpu-b"],
+  "password_profile": "password-host"
+}

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "terminal": {
+      "command": "node",
+      "args": ["-e", "require(require('path').join(process.env.LOCALAPPDATA, 'CodexSshTerminal', 'start-mcp.cjs'))"],
+      "startup_timeout_sec": 20
+    }
+  }
+}

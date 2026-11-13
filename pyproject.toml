@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codex-ssh-terminal-mcp"
+version = "0.9.0"
+description = "Local MCP and HTML SSH terminal bridge for Codex-assisted server operations."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: System :: Systems Administration",
+  "Topic :: Terminals",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+panel = ["cryptography>=50.0.2,<51", "websockets>=17.4,<18"]
+
+[project.scripts]
+codex-ssh-terminal-mcp = "mcp_server:main"
+codex-ssh-terminal-bridge = "server:main"
+codex-ssh-terminal-client = "client:main"
+
+[tool.setuptools]
+py-modules = [
+  "client",
+  "mcp_server",
+  "mcp_panel",
+  "panel_crypto",
+  "panel_transport",
+  "panel_clipboard",
+  "password_auth",
+  "batch_auth",
+  "connection_batch",
+  "connection_recovery",
+  "agent_commands",
+  "legacy_maintenance",
+  "platform_support",
+  "profile_secrets",
+  "profiles",
+  "runtime_config",
+  "server",
+  "state_paths",
+  "transfers",
+]
+
+[tool.setuptools.data-files]
+"codex-ssh-terminal-mcp/static" = ["static/index.html", "static/native-panel.js", "static/terminal-engine.js"]
+"codex-ssh-terminal-mcp/static/vendor/xterm" = ["static/vendor/xterm/LICENSE"]
+"codex-ssh-terminal-mcp/static/vendor/addon-fit" = ["static/vendor/addon-fit/LICENSE"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
